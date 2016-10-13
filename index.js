@@ -19,8 +19,10 @@ var program = require('commander');
 
 program
   .version('0.0.1')
-  .on('*', () => console.log(program.helpInformation()) )
+  .description('JudgeGirl CLI.')
+  .on('*', program.help )
   .command('live').description('Show live submission.')
+  .option('-l, --highlight <id>', 'Highlight submissions of specific ID.')
   .action(cmdLive);
 
 var BASE_URL = 'https://judgegirl.csie.org';
@@ -59,18 +61,25 @@ function cmdLive() {
           var task = submissions[v.sid];
           var pid = util.lpad(v.pid, 5);
           var title = util.pad(util.trim(v.ttl, 24), 24);
-          var result = util.pad(constants.ENUM_RESULT[v.res], 4);
-          var score = util.lpad(v.scr, 3);
+          var score = util.lpad(v.scr, 2);
           var submDate = strftime('%m-%d %H:%M:%S', new Date(v.ts));
+          var ram = Math.round(v.mem / (2 << 10));
+          var verdict = constants.ENUM_RESULT[v.res];
+          var result = util.pad(verdict, 4);
+
+          var lgnPrintFN = chalk.blue;
+          if (program.args[0].highlight && program.args[0].highlight == v.lgn)
+            lgnPrintFN = chalk.bgBlue.bold;
           if (!task) {
-            task = submissions[v.sid] = observatory.add(`${chalk.gray(v.sid)}  ${chalk.bold(pid)} ${title} ${chalk.blue(v.lgn)} ${submDate} `);
+            task = submissions[v.sid] = observatory
+              .add(`${chalk.gray(v.sid)}  ${chalk.bold(pid)} ${title} ${lgnPrintFN(v.lgn)} ${submDate} `);
           }
           if (v.res == 0) {
             task.details('Judging...');
           } else if (v.res == 7) {
-            task.details('').done('✓ ' + util.colorResult(result, 'AC'));
+            task.details('').done(util.colorIcon('✓ ', verdict) + util.colorResult(result, verdict) + ` ${v.cpu}ms, ${ram}KB`);
           } else {
-            task.details('').fail('✗ ' + util.colorResult(result, constants.ENUM_RESULT[v.res]) + ` (${score})`);
+            task.details('').fail(util.colorIcon('✗ ', verdict) + util.colorResult(result, verdict) + ` (${score})`);
           }
         });
       })
@@ -105,5 +114,4 @@ function cmdProbTask(probId) {
 program.parse(process.argv);
 
 if (!program.args.length)
-  console.log( program.helpInformation() );
-
+  program.help();
